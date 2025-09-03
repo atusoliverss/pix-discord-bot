@@ -1,33 +1,48 @@
 // src/commands/pix/modal.js
 const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js')
 
-/**
- * Cria e retorna uma ModalBuilder pronta para uso.
- * Usamos uma função pra garantir que uma nova instância é criada a cada vez (evita reuso de estado).
- */
-function createPixModal() {
-  // monta a modal com um customId que será usado no submit handler
-  const modal = new ModalBuilder()
-    .setCustomId('pixModal') // IDENTIFICADOR fundamental para capturar o submit depois
-    .setTitle('Gerar Pix')
+function createPixModal(tipo = 'CELULAR') {
+  const safeTipo = String(tipo || 'CELULAR').toUpperCase()
 
-  // input do valor (campo curto)
+  const modal = new ModalBuilder()
+    .setCustomId(`pixModal:${safeTipo}`) // <- codifica o tipo
+    .setTitle('Gerar QR Code Pix')
+
+  // Campo de valor (obrigatório)
   const valorInput = new TextInputBuilder()
-    .setCustomId('valor') // id do campo para recuperar o valor depois
-    .setLabel('Valor em BRL (ex: 10.50)')
+    .setCustomId('valor')
+    .setLabel('Valor em BRL (ex.: 10.50)')
     .setStyle(TextInputStyle.Short)
     .setRequired(true)
     .setPlaceholder('10.00')
+    .setMaxLength(10)
 
-  // input da chave Pix (email, cpf, celular, chave aleatória)
+  // Placeholders por tipo de chave
+  const placeholderPorTipo = {
+    CELULAR: '+55DD9XXXXXXXXX',  // 13 dígitos após 55
+    CPF:     '00000000000',
+    CNPJ:    '00000000000000',
+    EMAIL:   'exemplo@dominio.com',
+    EVP:     'chave aleatória (UUID)'
+  }
+
+  // Valor inicial (pré-preenchido para celular)
+  let initialValue = ''
+  if (safeTipo === 'CELULAR') {
+    initialValue = '+55' // já aparece no campo
+  }
+
+  // Campo da chave Pix
   const chaveInput = new TextInputBuilder()
     .setCustomId('chavepix')
-    .setLabel('Chave Pix (ex: exemplo@teste.com, 5511999998888, 00000000000)')
+    .setLabel(`Chave Pix (${safeTipo})`)
     .setStyle(TextInputStyle.Short)
     .setRequired(true)
-    .setPlaceholder('ex: exemplo@teste.com ou 5511999998888')
+    .setPlaceholder(placeholderPorTipo[safeTipo] || 'sua chave Pix')
+    .setValue(initialValue) // <-- pré-preenche só para celular
+    .setMaxLength(77)
 
-  // cada TextInput precisa estar dentro de um ActionRow
+  // Adiciona os campos à modal
   modal.addComponents(
     new ActionRowBuilder().addComponents(valorInput),
     new ActionRowBuilder().addComponents(chaveInput)

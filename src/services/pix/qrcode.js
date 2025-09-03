@@ -4,21 +4,28 @@
 const QRCode = require('qrcode')
 
 /**
- * payloadToPngBuffer(payload)
- * Recebe a string BR Code (payload) e retorna um Buffer com o PNG do QR.
+ * Gera um Buffer PNG a partir do payload Pix (BR Code).
+ *
+ * @param {string} payload - o payload EMV Pix já montado
+ * @param {object} [options] - opções visuais do QR
+ * @param {number} [options.scale=6] - fator de escala (resolução)
+ * @param {number} [options.margin=1] - margem ao redor do QR
+ * @returns {Promise<Buffer>}
  */
-async function payloadToPngBuffer(payload) {
-  // usamos toDataURL e convertemos para Buffer (compatível com Discord AttachmentBuilder)
-  const dataUrl = await QRCode.toDataURL(payload, {
-    errorCorrectionLevel: 'M',
-    type: 'image/png',
-    margin: 1, // margem pequena
-    scale: 6   // aumenta resolução (opcional)
-  })
+async function payloadToPngBuffer(payload, options = {}) {
+  if (!payload || typeof payload !== 'string') {
+    throw new Error('Payload inválido para gerar QR Code.')
+  }
 
-  // dataUrl tem formato "data:image/png;base64,...."
-  const base64 = dataUrl.split(',')[1]
-  return Buffer.from(base64, 'base64')
+  const { scale = 6, margin = 1 } = options
+
+  // Usa diretamente toBuffer para obter um Buffer PNG
+  return await QRCode.toBuffer(payload, {
+    errorCorrectionLevel: 'M',
+    type: 'png',
+    margin,
+    scale
+  })
 }
 
 module.exports = {

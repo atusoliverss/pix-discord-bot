@@ -1,89 +1,139 @@
 // src/commands/pix/handler.js
 const { AttachmentBuilder } = require('discord.js')
-
-// importamos helpers/services (assumimos que você os criará conforme nomes abaixo)
-const { validateAmount, detectKeyType, normalizePhoneIfNeeded } = require('../../services/pix/validation')
+const {
+  validateAmount,
+  normalizePhoneIfNeeded,
+  isValidCPF,
+  isValidCNPJ,
+  onlyDigits,
+  isBrazilCellphoneDigitsStrict,
+  isBrazilCellphoneDigitsNational
+} = require('../../services/pix/validation')
 const { buildPixPayload } = require('../../services/pix/payload')
 const { generateTxid } = require('../../services/pix/txid')
 const { payloadToPngBuffer } = require('../../services/pix/qrcode')
-const { createPixEmbed } = require('../../ui/embeds')
-const env = require('../../config/env') // aqui esperamos exportar PIX_MERCHANT_NAME/PIX_MERCHANT_CITY
+const { createPixEmbed, createPixButtons } = require('../../ui/embeds')
+const env = require('../../config/env')
 
-/**
- * Handler do submit da modal 'pixModal'.
- * Exportamos um objeto com customId e a função handle para facilitar o roteamento.
- */
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const UUID_RE  = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
 module.exports = {
   customId: 'pixModal',
 
-  /**
-   * interaction: ModalSubmitInteraction
-   */
+  /** @param {import('discord.js').ModalSubmitInteraction} interaction */
   async handle(interaction) {
     try {
-      // 1) ler campos enviados pelo usuário (os customIds definidos no modal)
+      const [, tipoRaw] = String(interaction.customId || '').split(':')
+      const tipo = (tipoRaw || 'CELULAR').toUpperCase()
+
       const rawValor = interaction.fields.getTextInputValue('valor').trim()
       const rawChave = interaction.fields.getTextInputValue('chavepix').trim()
 
-      // 2) validar e normalizar valor
-      // aceita tanto "10.50" quanto "10,50" -> substituir vírgula por ponto
-      const valorNormalized = rawValor.replace(',', '.')
-      const amount = parseFloat(valorNormalized)
+      const amount = parseFloat(rawValor.replace(',', '.'))
       if (!validateAmount(amount)) {
-        // resposta curta e visível só pro usuário (ephemeral)
-        return interaction.reply({ content: 'Valor inválido. Insira um número maior que zero (ex: 10.50).', ephemeral: true })
+        return interaction.reply({
+          content: 'Valor inválido. Use um número maior que zero, ex.: 10.50.',
+          ephemeral: true
+        })
       }
 
-      // 3) detectar tipo da chave e normalizar telefone se necessário
-      const keyType = detectKeyType(rawChave) // ex: 'E-mail', 'CPF', 'Celular', 'EVP', ...
       let chave = rawChave
-      if (keyType === 'Celular') {
-        // opcional: normalizar para formato E.164 (+55...)
-        chave = normalizePhoneIfNeeded(rawChave)
+      let keyTypeHuman = 'Chave Pix'
+
+      if (tipo === 'EMAIL') {
+        if (!EMAIL_RE.test(chave)) {
+          return interaction.reply({ content: 'E-mail inválido.', ephemeral: true })
+        }
+        keyTypeHuman = 'E-mail'
+
+      } else if (tipo === 'EVP') {
+        if (!UUID_RE.test(chave)) {
+          return interaction.reply({ content: 'Chave aleatória (EVP) inválida. Informe um UUID.', ephemeral: true })
+        }
+        keyTypeHuman = 'EVP'
+
+      } else if (tipo === 'CPF') {
+        const d = onlyDigits(chave)
+        if (!isValidCPF(d)) {
+          return interaction.reply({ content: 'CPF inválido.', ephemeral: true })
+        }
+        chave = d
+        keyTypeHuman = 'CPF'
+
+      } else if (tipo === 'CNPJ') {
+        const d = onlyDigits(chave)
+        if (!isValidCNPJ(d)) {
+          return interaction.reply({ content: 'CNPJ inválido.', ephemeral: true })
+        }
+        chave = d
+        keyTypeHuman = 'CNPJ'
+
+      } else { // CELULAR
+        const digits = onlyDigits(chave)
+
+        if (chave === '+55' || digits === '55') {
+          return interaction.reply({
+            content: 'Número incompleto. Use **+55DD9XXXXXXXXX** (ex.: +5511999998888).',
+            ephemeral: true
+          })
+        }
+
+        const isIntl = isBrazilCellphoneDigitsStrict(digits)       // 55 + 11
+        let isNat = false
+
+        // Só aceita 11 dígitos nacionais se NÃO for CPF válido e tiver 3º dígito = 9
+        if (!isIntl && digits.length === 11) {
+          if (isValidCPF(digits)) {
+            return interaction.reply({
+              content: 'Isso parece um **CPF**. Selecione o tipo **CPF** para continuar.',
+              ephemeral: true
+            })
+          }
+          if (isBrazilCellphoneDigitsNational(digits)) {
+            isNat = true
+          }
+        }
+
+        if (!isIntl && !isNat) {
+          return interaction.reply({
+            content: 'Celular inválido. Use **+55DD9XXXXXXXXX** ou informe **DDD+9+número** (ex.: 11999998888).',
+            ephemeral: true
+          })
+        }
+
+        chave = normalizePhoneIfNeeded(chave) // normaliza para +55DD9XXXXXXXXX
+        keyTypeHuman = 'Celular'
       }
 
-      // 4) gerar txid (único por cobrança/QR — aqui só um identificador curto)
       const txid = generateTxid()
 
-      // 5) montar o payload BR Code (EMV) do Pix (a lógica fica em services/pix/payload)
       const payload = buildPixPayload({
         chave,
         amount,
         merchantName: env.PIX_MERCHANT_NAME,
         merchantCity: env.PIX_MERCHANT_CITY,
         txid,
-        description: 'Pagamento via Discord'
+        description: 'Pagamento via Discord',
+        static: true
       })
 
-      // 6) converter o payload para imagem PNG (Buffer)
       const pngBuffer = await payloadToPngBuffer(payload)
-
-      // 7) preparar attachments (imagem do QR e um brcode.txt para cópia se o usuário quiser)
       const qrAttachment = new AttachmentBuilder(pngBuffer, { name: 'pix.png' })
-      const brcodeAttachment = new AttachmentBuilder(Buffer.from(payload, 'utf8'), { name: 'brcode.txt' })
 
-      // 8) montar um embed bonito com informações (função em ui/embeds)
-      const embed = createPixEmbed({
-        amount,
-        chave,
-        keyType,
-        txid
-      })
+      const embed = createPixEmbed({ amount, chave, keyType: keyTypeHuman, txid })
 
-      // 9) responder ao usuário (ephemeral: só ele vê)
-      await interaction.reply({
+      return interaction.reply({
         ephemeral: true,
         embeds: [embed],
-        files: [qrAttachment, brcodeAttachment]
+        files: [qrAttachment],
+        components: [createPixButtons()]
       })
     } catch (err) {
       console.error('[pix:handler] erro ao processar modal submit:', err)
-      // tenta responder com uma mensagem de erro (sempre ephemeral)
-      if (interaction.replied || interaction.deferred) {
-        interaction.followUp({ content: 'Erro interno ao gerar o QR. Tente novamente mais tarde.', ephemeral: true }).catch(() => {})
-      } else {
-        interaction.reply({ content: 'Erro interno ao gerar o QR. Tente novamente mais tarde.', ephemeral: true }).catch(() => {})
-      }
+      const payload = { content: 'Erro interno ao gerar o QR. Tente novamente mais tarde.', ephemeral: true }
+      if (interaction.replied || interaction.deferred) return interaction.followUp(payload).catch(() => {})
+      return interaction.reply(payload).catch(() => {})
     }
   }
 }

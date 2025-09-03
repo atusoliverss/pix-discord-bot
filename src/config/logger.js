@@ -1,10 +1,26 @@
 // src/config/logger.js
-function logInfo(msg) {
-  console.log(`ℹ️ [INFO] ${new Date().toISOString()} - ${msg}`)
+// Logger simples com níveis padronizados e timestamp ISO
+
+function ts() {
+  return new Date().toISOString()
 }
 
-function logError(msg) {
-  console.error(`❌ [ERROR] ${new Date().toISOString()} - ${msg}`)
+function logInfo(msg, ...args) {
+  console.log(`ℹ️  [INFO]  ${ts()} - ${msg}`, ...args)
 }
 
-module.exports = { logInfo, logError }
+function logWarn(msg, ...args) {
+  console.warn(`⚠️  [WARN]  ${ts()} - ${msg}`, ...args)
+}
+
+function logError(msg, ...args) {
+  console.error(`❌ [ERROR] ${ts()} - ${msg}`, ...args)
+}
+
+function logDebug(msg, ...args) {
+  if (process.env.NODE_ENV !== 'production') {
+    console.debug(`🐞 [DEBUG] ${ts()} - ${msg}`, ...args)
+  }
+}
+
+module.exports = { logInfo, logWarn, logError, logDebug }
