@@ -42,6 +42,8 @@ module.exports = {
       let keyTypeHuman = 'Chave Pix'
 
       if (tipo === 'EMAIL') {
+        // ↓↓↓ Normaliza e-mail para minúsculo
+        chave = chave.toLowerCase().trim()
         if (!EMAIL_RE.test(chave)) {
           return interaction.reply({ content: 'E-mail inválido.', ephemeral: true })
         }
@@ -102,7 +104,8 @@ module.exports = {
           })
         }
 
-        chave = normalizePhoneIfNeeded(chave) // normaliza para +55DD9XXXXXXXXX
+        // normaliza para +55DD9XXXXXXXXX
+        chave = normalizePhoneIfNeeded(chave)
         keyTypeHuman = 'Celular'
       }
 

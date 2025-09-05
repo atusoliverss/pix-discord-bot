@@ -66,7 +66,7 @@ function isBrazilCellphoneDigitsNational(digits) {
 
 /**
  * Detecta tipo da chave Pix (somente para fluxos genéricos).
- * **Não** usa a regra do 3º dígito = 9 para evitar confundir CPF.
+ * Não usa a regra do 3º dígito = 9 para evitar confundir CPF.
  */
 function detectKeyType(chave) {
   if (!chave || typeof chave !== 'string') return 'Chave Pix'
