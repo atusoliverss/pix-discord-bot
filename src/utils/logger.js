@@ -1,5 +1,5 @@
 // src/utils/logger.js
-// Logger simples com níveis e timestamp. Evita console.log solto pelo projeto.
+// Logger simples com níveis, timestamp e contexto opcional.
 
 const LEVELS = {
   debug: 'DEBUG',
@@ -12,33 +12,41 @@ function ts() {
   return new Date().toISOString()
 }
 
-const useEmoji = process.env.LOG_EMOJI !== 'false' // pode desligar com LOG_EMOJI=false
+const useEmoji = process.env.LOG_EMOJI !== 'false'
 
-function log(level, emoji, ...args) {
-  const msg = `[${LEVELS[level] || level}] ${ts()}`
+function format(level, context, msg) {
+  const ctx = context ? `[${context}] ` : ''
+  return `[${LEVELS[level] || level}] ${ts()} ${ctx}${msg}`
+}
+
+function log(level, emoji, msg, context = '', ...args) {
   if (!useEmoji) emoji = ''
+  const line = format(level, context, msg)
+
   switch (level) {
     case 'debug':
-      if (process.env.NODE_ENV !== 'production') console.debug(`${emoji} ${msg}`, ...args)
+      if (process.env.NODE_ENV !== 'production')
+        console.debug(`${emoji} ${line}`, ...args)
       break
     case 'info':
-      console.log(`${emoji} ${msg}`, ...args)
+      console.log(`${emoji} ${line}`, ...args)
       break
     case 'warn':
-      console.warn(`${emoji} ${msg}`, ...args)
+      console.warn(`${emoji} ${line}`, ...args)
       break
     case 'error':
-      console.error(`${emoji} ${msg}`, ...args)
+      console.error(`${emoji} ${line}`, ...args)
       break
     default:
-      console.log(`${emoji} ${msg}`, ...args)
+      console.log(`${emoji} ${line}`, ...args)
   }
 }
 
-function debug(...args) { log('debug', '🐞', ...args) }
-function info(...args)  { log('info',  'ℹ️ ', ...args) }
-function warn(...args)  { log('warn',  '⚠️ ', ...args) }
-function error(...args) { log('error', '❌', ...args) }
+// atalhos
+function debug(msg, context = '', ...args) { log('debug', '🐞', msg, context, ...args) }
+function info(msg, context = '', ...args)  { log('info',  'ℹ️ ', msg, context, ...args) }
+function warn(msg, context = '', ...args)  { log('warn',  '⚠️ ', msg, context, ...args) }
+function error(msg, context = '', ...args) { log('error', '❌', msg, context, ...args) }
 
 module.exports = {
   debug,
@@ -46,5 +54,5 @@ module.exports = {
   warn,
   error,
   log,    // genérico
-  LEVELS  // exportado caso precise
+  LEVELS
 }

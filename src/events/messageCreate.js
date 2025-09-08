@@ -6,6 +6,7 @@ const prefix = '!'
 module.exports = {
   name: 'messageCreate',
   once: false,
+
   async execute(message, client) {
     // ignora mensagens de bots
     if (message.author.bot) return
@@ -24,23 +25,17 @@ module.exports = {
     }
 
     if (commandName === 'pix') {
-      // simula chamar o slash /pix (abre modal)
-      const cmd = client.commands.get('pix')
-      if (cmd) {
-        try {
-          return await cmd.execute(message, client) // cuidado: execute espera Interaction, aqui é Message
-        } catch (err) {
-          console.error('[messageCreate] erro ao executar !pix:', err)
-          return message.reply('⚠️ Erro ao processar o comando !pix.')
-        }
-      }
+      // /pix é slash command (abre modal). Message não consegue abrir modal.
+      return message.reply(
+        'O comando **Pix** agora é do tipo *slash*. Use **`/pix`** e escolha o tipo (Celular/CPF/CNPJ/E-mail/EVP ou BR Code).'
+      )
     }
 
     // ---------------- fallback ----------------
-    // se quiser, delega outros comandos de texto para os slash registrados
+    // se existir um slash command com o mesmo nome, sugira o uso
     const slashEquivalent = client.commands.get(commandName)
     if (slashEquivalent) {
-      return message.reply(`⚠️ O comando "!${commandName}" não está disponível, use "/${commandName}"`)
+      return message.reply(`⚠️ O comando "!${commandName}" não está disponível por texto. Use **/${commandName}**.`)
     }
 
     // comando desconhecido

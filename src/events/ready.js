@@ -2,18 +2,22 @@
 // Evento disparado quando o bot fica online (conectado ao Discord)
 
 const { ActivityType } = require('discord.js')
+const { logInfo, logError } = require('../config/logger')
 
 module.exports = {
-  name: 'ready',      // nome do evento
-  once: true,         // true = escuta apenas 1 vez
+  name: 'ready',
+  once: true,
+
   execute(client) {
     if (!client.user) {
-      console.error('❌ Bot pronto, mas client.user não definido!')
+      logError('Bot pronto, mas client.user não definido!', 'ready')
       return
     }
 
-    const now = new Date().toLocaleString('pt-BR')
-    console.log(`✅ [${now}] Bot logado como ${client.user.tag} (ID: ${client.user.id})`)
+    logInfo(
+      `Bot logado como ${client.user.tag} (ID: ${client.user.id})`,
+      'ready'
+    )
 
     // Define um "status/presença" para o bot
     client.user.setPresence({

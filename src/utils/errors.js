@@ -1,5 +1,5 @@
 // src/utils/errors.js
-// Classe de erro de aplicação para diferenciar erros "previstos" (ex: validação)
+// Classe de erro de aplicação para diferenciar erros "previstos" (ex.: validação)
 // de erros inesperados do sistema.
 
 class AppError extends Error {
@@ -14,7 +14,7 @@ class AppError extends Error {
     this.name = 'AppError'
     this.status = status
     this.code = code
-    this.meta = meta
+    this.meta = meta || {}
     this.isOperational = true // flag para erros previstos de negócio
 
     // mantém stack trace sem poluir com o construtor
@@ -34,13 +34,29 @@ class AppError extends Error {
     }
   }
 
-  // atalhos úteis
+  // ---------------- atalhos úteis ----------------
+
+  /** Erro de validação */
   static validation(msg, meta = {}) {
     return new AppError(msg, 400, 'VALIDATION', meta)
   }
 
+  /** Erro interno de servidor */
   static internal(msg = 'Erro interno no servidor', meta = {}) {
     return new AppError(msg, 500, 'INTERNAL', meta)
+  }
+
+  /**
+   * Converte qualquer erro em AppError (útil em catch globais)
+   */
+  static from(err, fallbackStatus = 500) {
+    if (err instanceof AppError) return err
+    return new AppError(
+      err?.message || 'Erro inesperado',
+      fallbackStatus,
+      err?.code || 'UNEXPECTED',
+      { stack: err?.stack }
+    )
   }
 }
 

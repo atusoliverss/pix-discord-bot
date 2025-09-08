@@ -1,6 +1,10 @@
 // scripts/deploy-commands.js
-// Registra/atualiza os slash commands na GUILD (servidor) definida no .env,
-// ou globalmente se rodar com a flag --global.
+// Publica/atualiza os slash commands em múltiplas guilds (GUILD_IDS),
+// em uma única guild (GUILD_ID) ou GLOBALMENTE (flag --global).
+//
+// Uso:
+//  - node scripts/deploy-commands.js --global
+//  - node scripts/deploy-commands.js            (usa GUILD_IDS ou GUILD_ID do .env)
 
 require('dotenv').config()
 const fs = require('fs')
@@ -9,10 +13,27 @@ const { REST, Routes } = require('discord.js')
 
 const isGlobal = process.argv.includes('--global')
 
-// --- validação rápida do env ---
-const { DISCORD_TOKEN, CLIENT_ID, GUILD_ID } = process.env
-if (!DISCORD_TOKEN || !CLIENT_ID || (!isGlobal && !GUILD_ID)) {
-  console.error('❌ Faltou configurar DISCORD_TOKEN, CLIENT_ID e (se não usar --global) GUILD_ID no .env')
+// --- env ---
+const {
+  DISCORD_TOKEN,
+  CLIENT_ID,
+  GUILD_ID,     // fallback para 1 guild
+  GUILD_IDS     // lista separada por vírgula
+} = process.env
+
+if (!DISCORD_TOKEN || !CLIENT_ID) {
+  console.error('❌ Faltou configurar DISCORD_TOKEN ou CLIENT_ID no .env')
+  process.exit(1)
+}
+
+// prepara lista de guilds: GUILD_IDS (csv) > GUILD_ID (single) > []
+const guildIds = (GUILD_IDS || '')
+  .split(',')
+  .map(s => s.trim())
+  .filter(Boolean)
+
+if (!isGlobal && guildIds.length === 0 && !GUILD_ID) {
+  console.error('❌ Defina GUILD_IDS (ids separados por vírgula) ou GUILD_ID no .env. Ou use --global.')
   process.exit(1)
 }
 
@@ -31,7 +52,7 @@ function walk(dir) {
     } else if (file.endsWith('.js')) {
       try {
         const cmd = require(full)
-        // cada comando deve exportar { data, execute }; precisamos do data.toJSON()
+        // cada comando deve exportar { data, execute } e data.toJSON()
         if (cmd?.data?.toJSON) {
           commands.push(cmd.data.toJSON())
           console.log(`➕ Encontrado comando: ${cmd.data.name}`)
@@ -50,7 +71,7 @@ if (commands.length === 0) {
   console.warn('⚠️ Nenhum comando encontrado em src/commands — nada para publicar.')
 }
 
-// valida nomes duplicados (o Discord rejeita duplicados na mesma app/guild)
+// valida nomes duplicados
 const names = new Set()
 for (const c of commands) {
   if (names.has(c.name)) {
@@ -65,6 +86,7 @@ const rest = new REST({ version: '10' }).setToken(DISCORD_TOKEN)
 ;(async () => {
   try {
     if (isGlobal) {
+      // ---------- GLOBAL ----------
       console.log(`🌐 Publicando ${commands.length} comando(s) GLOBALMENTE para a aplicação ${CLIENT_ID}...`)
       const result = await rest.put(
         Routes.applicationCommands(CLIENT_ID),
@@ -72,13 +94,18 @@ const rest = new REST({ version: '10' }).setToken(DISCORD_TOKEN)
       )
       console.log(`✅ Concluído! ${result.length} comando(s) ativos GLOBALMENTE.`)
       console.log('ℹ️ A propagação global pode levar alguns minutos.')
-    } else {
-      console.log(`🚀 Publicando ${commands.length} comando(s) na guild ${GUILD_ID}...`)
+      return
+    }
+
+    // ---------- POR GUILD ----------
+    const targets = guildIds.length > 0 ? guildIds : [GUILD_ID]
+    for (const gid of targets) {
+      console.log(`🚀 Publicando ${commands.length} comando(s) na guild ${gid}...`)
       const result = await rest.put(
-        Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID),
+        Routes.applicationGuildCommands(CLIENT_ID, gid),
         { body: commands }
       )
-      console.log(`✅ Concluído! ${result.length} comando(s) ativos na guild.`)
+      console.log(`✅ Concluído! ${result.length} comando(s) ativos na guild ${gid}.`)
     }
   } catch (err) {
     console.error('❌ Erro ao registrar comandos:', err?.response?.data ?? err)

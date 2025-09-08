@@ -7,10 +7,16 @@ const COLOR_ERROR   = 0xd73a49
 const COLOR_INFO    = 0x646cff
 
 function formatBRL(amount) {
-  return `R$ ${Number(amount).toFixed(2).replace('.', ',')}`
+  const n = Number(amount)
+  if (!isFinite(n) || isNaN(n)) return 'R$ —'
+  return `R$ ${n.toFixed(2).replace('.', ',')}`
 }
 
-function createPixEmbed({ amount, chave, keyType, txid }) {
+function escapeBackticks(str = '') {
+  return String(str).replace(/`/g, 'ˋ')
+}
+
+function createPixEmbed({ amount, chave, keyType, txid, qrFilename = 'pix.png' }) {
   return new EmbedBuilder()
     .setColor(COLOR_PRIMARY)
     .setTitle('QR Code Pix gerado')
@@ -18,15 +24,14 @@ function createPixEmbed({ amount, chave, keyType, txid }) {
     .addFields(
       { name: 'Valor', value: formatBRL(amount), inline: true },
       { name: 'Tipo de chave', value: keyType || '—', inline: true },
-      { name: 'Chave Pix', value: `\`${chave}\`` },
+      { name: 'Chave Pix', value: `\`${escapeBackticks(chave)}\`` },
       { name: 'TXID', value: txid || '—' }
     )
-    .setImage('attachment://pix.png')
+    .setImage(`attachment://${qrFilename}`)
     .setFooter({ text: 'Pagamento Pix (QR estático)' })
     .setTimestamp(Date.now())
 }
 
-/** linha com 3 botões */
 function createPixButtons() {
   const copyBtn = new ButtonBuilder()
     .setCustomId('copy_brcode')
@@ -38,36 +43,17 @@ function createPixButtons() {
     .setLabel('➕ Gerar outro QR')
     .setStyle(ButtonStyle.Primary)
 
-  const fromBrcodeBtn = new ButtonBuilder()
-    .setCustomId('brcode_to_qr')
-    .setLabel('🔄 QR de BR Code')
-    .setStyle(ButtonStyle.Secondary)
-
-  return new ActionRowBuilder().addComponents(copyBtn, newBtn, fromBrcodeBtn)
+  return new ActionRowBuilder().addComponents(copyBtn, newBtn)
 }
 
 function createSuccessEmbed(title, description = '') {
-  return new EmbedBuilder()
-    .setColor(COLOR_SUCCESS)
-    .setTitle(title || 'Tudo certo!')
-    .setDescription(description)
-    .setTimestamp(Date.now())
+  return new EmbedBuilder().setColor(COLOR_SUCCESS).setTitle(title || 'Tudo certo!').setDescription(description).setTimestamp(Date.now())
 }
-
 function createInfoEmbed(title, description = '') {
-  return new EmbedBuilder()
-    .setColor(COLOR_INFO)
-    .setTitle(title || 'Informação')
-    .setDescription(description)
-    .setTimestamp(Date.now())
+  return new EmbedBuilder().setColor(COLOR_INFO).setTitle(title || 'Informação').setDescription(description).setTimestamp(Date.now())
 }
-
 function createErrorEmbed(message) {
-  return new EmbedBuilder()
-    .setColor(COLOR_ERROR)
-    .setTitle('Ocorreu um erro')
-    .setDescription(message || 'Tente novamente.')
-    .setTimestamp(Date.now())
+  return new EmbedBuilder().setColor(COLOR_ERROR).setTitle('Ocorreu um erro').setDescription(message || 'Tente novamente.').setTimestamp(Date.now())
 }
 
 module.exports = {
