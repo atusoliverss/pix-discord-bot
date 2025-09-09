@@ -1,10 +1,10 @@
 {
   "name": "pix-discord-bot",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Bot Pix para Discord",
+  "main": "src/index.js",
   "scripts": {
-    "dev": "nodemon",
+    "dev": "nodemon src/index.js",
     "start": "node src/index.js",
     "deploy": "node scripts/deploy-commands.js",
     "test": "echo \"No tests yet\" && exit 0"
